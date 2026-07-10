@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rampart — CMMC Level 2 Console</title>
+    <!--
+      Tailwind is loaded via the Play CDN for zero-config local development.
+      It generates every utility class at runtime (including the ones this app
+      builds dynamically, e.g. `bg-emerald-50`), so nothing gets purged.
+      For a production build, replace this with a compiled Tailwind setup + a
+      safelist for the dynamic color classes. See README.
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      html, body, #root { height: 100%; }
+      body { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
