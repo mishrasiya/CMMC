@@ -1,9 +1,9 @@
 {
-  "name": "cmmc-console",
+  "name": "cmmcforge",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Rampart — a CMMC Level 2 compliance console (NIST SP 800-171 Rev 2).",
+  "description": "CMMCForge — Continuous Compliance & Evidence Engine (CMMC Level 2, NIST SP 800-171 Rev 2).",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

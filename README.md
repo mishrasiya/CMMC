@@ -1,4 +1,4 @@
-# Rampart — CMMC Level 2 Console
+# CMMCForge — Continuous Compliance & Evidence Engine
 
 A working compliance console for **CMMC Level 2 (NIST SP 800-171 Rev 2)** — assessment,
 frameworks, controls, risk (assets/vendors/register), documents, monitoring, integrations,
@@ -46,7 +46,7 @@ Cursor's AI to modify any page.
 ```bash
 git init
 git add .
-git commit -m "Initial commit: Rampart CMMC L2 console"
+git commit -m "Initial commit: CMMCForge CMMC L2 console"
 ```
 
 Push to GitHub (after creating an empty repo there):
