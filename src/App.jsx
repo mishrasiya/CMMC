@@ -4,8 +4,9 @@ import {
   Shield, ChevronDown, ChevronRight, Trash2, AlertTriangle, CheckCircle2,
   Circle, HelpCircle, Clock, Link2, Info, RotateCcw, Layers, Download, ChevronLeft,
   Boxes, Building2, Upload, Camera, ShieldAlert, FileText, Users, Activity, Plug, Gavel, ShieldCheck, Lock,
-  FileBarChart, Mail, CalendarClock, LayoutGrid, Settings as SettingsIcon,
+  FileBarChart, Mail, CalendarClock, LayoutGrid, Settings as SettingsIcon, Zap,
 } from "lucide-react";
+import { collectForConnections, complianceForConnection } from "./collectors.js";
 
 /* ------------------------------------------------------------------ */
 /*  FRAMEWORK DATA — NIST SP 800-171 Rev 2 (CMMC Level 2, 110 controls) */
@@ -646,11 +647,20 @@ export default function App() {
     return 110 - d;
   }, [assessment]);
 
+  // Evidence auto-collected from Connected integrations (read-only), merged with
+  // manually-entered evidence. Deterministic; recomputes when connections change.
+  const autoEvidence = useMemo(() => collectForConnections(connections), [connections]);
+  const allEvidence = useMemo(() => {
+    if (!autoEvidence.length) return evidence;
+    const seen = new Set(evidence.map((e) => e.id));
+    return [...evidence, ...autoEvidence.filter((e) => !seen.has(e.id))];
+  }, [evidence, autoEvidence]);
+
   const evidenceByControl = useMemo(() => {
     const map = {};
-    for (const ev of evidence) for (const cid of ev.controlIds || []) (map[cid] ||= []).push(ev);
+    for (const ev of allEvidence) for (const cid of ev.controlIds || []) (map[cid] ||= []).push(ev);
     return map;
-  }, [evidence]);
+  }, [allEvidence]);
 
   const openActions = actions.filter((a) => a.status !== "Done").length;
 
@@ -790,14 +800,14 @@ export default function App() {
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl px-6 py-6">
-          {view === "home" && <HomePage orgName={settings.orgName} sprs={sprs} overall={overall} stats={{ openActions, risks: risks.length, vendors: vendors.length, assets: assets.length, people: people.length, documents: documents.length, evidence: evidence.length, audits: audits.length, pendingTrust: trust.requests.filter((r) => r.status === "Pending").length }} onGoto={setView} />}
+          {view === "home" && <HomePage orgName={settings.orgName} sprs={sprs} overall={overall} stats={{ openActions, risks: risks.length, vendors: vendors.length, assets: assets.length, people: people.length, documents: documents.length, evidence: allEvidence.length, audits: audits.length, pendingTrust: trust.requests.filter((r) => r.status === "Pending").length }} onGoto={setView} />}
           {view === "settings" && <SettingsPage settings={settings} setSettings={setSettings} onExport={exportWorkspace} onImport={importWorkspace} onReset={resetAll} onLoadDemo={loadDemo} />}
           {view === "assessment" && <Assessment assessment={assessment} overall={overall} sprs={sprs} actions={actions} evidenceByControl={evidenceByControl} frameworks={allFrameworks} onGoto={setView} />}
           {view === "frameworks" && <Frameworks frameworks={allFrameworks} assessment={assessment} evidenceByControl={evidenceByControl} sprs={sprs} onAdd={() => setFwModal(true)} onRemove={removeFramework} onGoto={setView} />}
           {view === "controls" && <Controls assessment={assessment} setStatus={setStatus} setNote={setNote} evidenceByControl={evidenceByControl} onCreateAction={(c) => setActionModal({ controlId: c.id, prefill: c })} controlSets={controlSets} addControlSet={addControlSet} updateControlSet={updateControlSet} removeControlSet={removeControlSet} />}
           {view.startsWith("risks") && <Risks sub={view.split(":")[1] || "assets"} assets={assets} setAssets={setAssets} vendors={vendors} setVendors={setVendors} risks={risks} setRisks={setRisks} snapshots={snapshots} setSnapshots={setSnapshots} />}
           {view.startsWith("documents") && <Documents sub={view.split(":")[1] || "policies"} documents={documents} setDocuments={setDocuments} />}
-          {view.startsWith("monitoring") && <Monitoring sub={view.split(":")[1] || "evidence"} evidence={evidence} setEvidence={setEvidence} connectors={connectors} setConnectors={setConnectors} people={people} setPeople={setPeople} />}
+          {view.startsWith("monitoring") && <Monitoring sub={view.split(":")[1] || "evidence"} evidence={allEvidence} setEvidence={setEvidence} connectors={connectors} setConnectors={setConnectors} people={people} setPeople={setPeople} />}
           {view === "integrations" && <Integrations connections={connections} setConnections={setConnections} />}
           {view === "poam" && <Poam actions={actions} setActions={setActions} onNew={() => setActionModal({})} />}
           {view === "audits" && <Audits audits={audits} setAudits={setAudits} frameworks={allFrameworks} controlSets={controlSets} assessment={assessment} evidenceByControl={evidenceByControl} />}
@@ -2679,6 +2689,13 @@ const EV_STATUS_META = {
 };
 const EV_STATUS = Object.keys(EV_STATUS_META);
 
+// Compliance verdict for auto-collected findings (finding.result -> badge).
+const COMPLY_META = {
+  pass: { label: "Compliant", hex: "#10b981" },
+  partial: { label: "Partial", hex: "#f59e0b" },
+  fail: { label: "Non-compliant", hex: "#f43f5e" },
+};
+
 const CONNECTORS = [
   { cat: "Cloud", items: ["Amazon Web Services", "Microsoft Azure", "Google Cloud"] },
   { cat: "Identity", items: ["Okta", "Microsoft Entra ID", "Google Workspace"] },
@@ -2728,9 +2745,16 @@ function EvidenceMonitor({ evidence, setEvidence }) {
     ...evidence.map((e) => [e.name, e.status || "Not Started", e.dueOn || "", e.owner || "", e.assigned || "", e.program || "CMMC Level 2", (e.controlIds || []).join("; "), e.objective || ""]),
   ]);
   const th = "px-3 py-2.5 font-medium", td = "px-3 py-2.5 align-top";
+  const autoCount = evidence.filter((e) => e.source === "auto").length;
 
   return (
     <div className="space-y-4">
+      {autoCount > 0 && (
+        <div className="flex items-start gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+          <Zap size={14} className="mt-0.5 flex-shrink-0" />
+          <span><span className="font-semibold">{autoCount} checks auto-collected</span> from your connected integrations and mapped to controls, with a compliance verdict on each. Re-sync a connection on the Integrations page to refresh. Synthetic data in this demo.</span>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         {evidence.length === 0 ? <p className="text-sm text-zinc-500">Add evidence and map it to the controls it satisfies.</p> : <span />}
         <div className="flex gap-2">
@@ -2751,15 +2775,32 @@ function EvidenceMonitor({ evidence, setEvidence }) {
               <tr><th className={th}>Evidence</th><th className={th}>Status</th><th className={th}>Due on</th><th className={th}>Owner</th><th className={th}>Assigned</th><th className={th}>Program</th><th className={th}>Control</th><th className={th}>Objective</th><th className={th}></th></tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {evidence.map((e) => (
-                <tr key={e.id}>
-                  <td className={`${td} font-medium text-zinc-800`}>{e.name}</td>
-                  <td className={td}>
-                    <select value={e.status || "Not Started"} onChange={(ev) => update(e.id, { status: ev.target.value })} className="rounded-md border px-2 py-1 text-xs font-medium outline-none" style={{ borderColor: EV_STATUS_META[e.status || "Not Started"].hex, color: "#3f3f46" }}>
-                      {EV_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+              {evidence.map((e) => {
+                const auto = e.source === "auto";
+                const comply = auto ? (COMPLY_META[e.result] || COMPLY_META.partial) : null;
+                return (
+                <tr key={e.id} className={auto ? "bg-indigo-50/20" : undefined}>
+                  <td className={`${td} font-medium text-zinc-800`}>
+                    <div>{e.name}</div>
+                    {auto && (
+                      <span className="mt-1 inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                        <Zap size={10} /> Auto · {e.provider}
+                        {e.metric && <span className="text-indigo-400">· {e.metric.covered}/{e.metric.total}</span>}
+                      </span>
+                    )}
                   </td>
-                  <td className={`${td} whitespace-nowrap text-zinc-600`}>{e.dueOn || "—"}</td>
+                  <td className={td}>
+                    {auto ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium" style={{ borderColor: comply.hex, color: comply.hex }}>
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: comply.hex }} />{comply.label}
+                      </span>
+                    ) : (
+                      <select value={e.status || "Not Started"} onChange={(ev) => update(e.id, { status: ev.target.value })} className="rounded-md border px-2 py-1 text-xs font-medium outline-none" style={{ borderColor: EV_STATUS_META[e.status || "Not Started"].hex, color: "#3f3f46" }}>
+                        {EV_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    )}
+                  </td>
+                  <td className={`${td} whitespace-nowrap text-zinc-600`}>{auto ? <span className="text-zinc-400">synced {relTime(e.collectedAt)}</span> : (e.dueOn || "—")}</td>
                   <td className={`${td} text-zinc-600`}>{e.owner || "—"}</td>
                   <td className={`${td} text-zinc-600`}>{e.assigned || "—"}</td>
                   <td className={`${td} text-zinc-600`}>{e.program || "CMMC Level 2"}</td>
@@ -2772,11 +2813,17 @@ function EvidenceMonitor({ evidence, setEvidence }) {
                   </td>
                   <td className={td}><span className="block max-w-[160px] truncate text-zinc-500" title={e.objective}>{e.objective || "—"}</span></td>
                   <td className={`${td} whitespace-nowrap text-right`}>
-                    <button onClick={() => setModal({ mode: "edit", doc: e })} className="mr-2 text-xs font-medium text-indigo-600 hover:text-indigo-700">Edit</button>
-                    <button onClick={() => remove(e.id)} className="text-zinc-300 hover:text-rose-500"><Trash2 size={14} /></button>
+                    {auto ? (
+                      <span className="text-[10px] text-zinc-400">read-only</span>
+                    ) : (
+                      <>
+                        <button onClick={() => setModal({ mode: "edit", doc: e })} className="mr-2 text-xs font-medium text-indigo-600 hover:text-indigo-700">Edit</button>
+                        <button onClick={() => remove(e.id)} className="text-zinc-300 hover:text-rose-500"><Trash2 size={14} /></button>
+                      </>
+                    )}
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>
@@ -3009,8 +3056,8 @@ function Integrations({ connections, setConnections }) {
         <button onClick={() => setModal({ pick: true })} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"><Plus size={15} /> Add connection</button>
       </header>
 
-      <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-        <Info size={13} /> Connections are saved locally for planning. Live sync and secure credential vaulting are part of the automation layer and aren't active in this baseline.
+      <div className="flex items-start gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+        <Zap size={14} className="mt-0.5 flex-shrink-0" /> Connected integrations auto-collect evidence and map it to the controls they cover — see the <span className="font-medium">Evidence</span> page and per-control compliance. Findings in this demo are synthetic; wiring real read-only credentials is the next step.
       </div>
 
       {/* Active connections */}
@@ -3019,12 +3066,25 @@ function Integrations({ connections, setConnections }) {
           <div className="py-8 text-center text-sm text-zinc-400">No connections yet. Add one from the catalog below.</div>
         ) : (
           <div className="space-y-2">
-            {connections.map((c) => (
+            {connections.map((c) => {
+              const cov = complianceForConnection(c);
+              const active = c.status !== "Disabled";
+              return (
               <div key={c.id} className="flex items-center gap-3 rounded-lg border border-zinc-100 p-3">
                 <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-zinc-100 text-sm font-semibold text-zinc-500">{c.provider[0]}</div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-zinc-800">{c.name}</div>
                   <div className="text-xs text-zinc-400">{c.provider} · {c.category} · synced {relTime(c.lastSync)}</div>
+                  {cov.total > 0 ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                      <span className="font-medium text-zinc-500">{active ? `${cov.total} controls evidenced` : "paused — no collection"}</span>
+                      {active && <><span className="text-emerald-600">{cov.pass} compliant</span>
+                      {cov.partial > 0 && <span className="text-amber-600">{cov.partial} partial</span>}
+                      {cov.fail > 0 && <span className="text-rose-600">{cov.fail} gap{cov.fail > 1 ? "s" : ""}</span>}</>}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-[11px] text-zinc-400">No automated control coverage for this category</div>
+                  )}
                 </div>
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: CONN_STATUS_META[c.status].hex }}>
                   <span className="h-2 w-2 rounded-full" style={{ background: CONN_STATUS_META[c.status].hex }} />{c.status}
@@ -3033,7 +3093,7 @@ function Integrations({ connections, setConnections }) {
                 <button onClick={() => toggle(c.id)} className="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50">{c.status === "Disabled" ? "Enable" : "Disable"}</button>
                 <button onClick={() => remove(c.id)} className="text-zinc-300 hover:text-rose-500"><Trash2 size={15} /></button>
               </div>
-            ))}
+            );})}
           </div>
         )}
       </Card>
