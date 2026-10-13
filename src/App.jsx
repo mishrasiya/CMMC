@@ -736,8 +736,8 @@ export default function App() {
         <div className="flex items-center gap-2 border-b border-slate-800 px-4 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-500 text-white"><Shield size={17} /></div>
           <div>
-            <div className="text-sm font-semibold leading-tight text-white">Rampart</div>
-            <div className="text-[10px] leading-tight text-slate-400">CMMC Level 2 Console</div>
+            <div className="text-sm font-semibold leading-tight text-white">CMMCForge</div>
+            <div className="text-[10px] leading-tight text-slate-400">Continuous Compliance &amp; Evidence Engine</div>
           </div>
         </div>
         <nav className="flex-1 space-y-1 p-3">
@@ -4047,7 +4047,7 @@ function SettingsPage({ settings, setSettings, onExport, onImport, onReset, onLo
       </Card>
 
       <Card title="About">
-        <div className="text-sm text-zinc-600">Rampart — CMMC Level 2 compliance console.</div>
+        <div className="text-sm text-zinc-600">CMMCForge — Continuous Compliance &amp; Evidence Engine.</div>
         <div className="text-xs text-zinc-400">Baseline build · manual data entry · automation layer not yet enabled.</div>
       </Card>
     </div>
